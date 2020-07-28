@@ -1,0 +1,90 @@
+---
+title: "Series temporelles et reproductibilite"
+author: "Alexis Gloutney"
+date: "28 juillet 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Chargement des bibliotheques
+
+```{r Chargement des bibliotheques}
+library("lubridate")
+library("tidyverse")
+library("forecast")
+```
+
+### Lecture du fichier
+
+```{r Lecture du fichier}
+CO2_Mauna_Loa <- read.csv('C:/Users/ALGLO/Desktop/TP5/hawai.csv')
+```
+
+### Pretraitement des donnees
+
+```{r Pretraitement des donnees}
+Date <- format(date_decimal(CO2_Mauna_Loa$time), "%Y-%m-%d")
+
+Date <- as.Date(Date)
+
+CO2_Mauna_Loa$Date <- Date
+
+CO2_Mauna_Loa$time <- NULL
+
+CO2_Mauna_Loa <- select(CO2_Mauna_Loa, "Date", "CO2") 
+```
+
+### Creation d'une serie temporelle
+
+```{r Creation d_une serie temporelle}
+  ## Previsualisation des donnees -----
+
+glimpse(CO2_Mauna_Loa)
+
+CO2_Mauna_Loa %>%
+  ggplot(aes(x = Date, y = CO2)) +
+  geom_line()
+
+  ## Separation de la serie en serie d'entrainement et en serie test -----
+
+CO2_ML_ts <- ts(CO2_Mauna_Loa %>% dplyr::select(-Date),
+             start = c(CO2_Mauna_Loa$Date[1] %>% year(), 1),
+             frequency = 12)
+
+CO2_ML_ts_Entrainement <- window(CO2_ML_ts, start = 1958.167, end = 1989.000)
+
+CO2_ML_ts_Test <- window(CO2_ML_ts, start = 1989.000)
+```
+
+### Creation d'un modele previsionnel TBATS
+
+```{r Creation d_un modele previsionnel TBATS}
+  ## Essai du modele previsonnel TBATS sur les donnees d'entrainement -----
+
+TBATS_CO2_ML_Entrainement <- CO2_ML_ts_Entrainement %>% tbats()
+TBATS_CO2_ML_Entrainement <- TBATS_CO2_ML_Entrainement %>% forecast()
+TBATS_CO2_ML_Entrainement %>% autoplot()
+
+summary(TBATS_CO2_ML_Entrainement)
+
+  ## Prediction du modele previsonnel TBATS d'apres les donnees test -----
+
+TBATS_CO2_ML_Test <- CO2_ML_ts_Test %>% tbats()
+TBATS_CO2_ML_Test <- TBATS_CO2_ML_Test %>% forecast()
+TBATS_CO2_ML_Test %>% autoplot()
+
+summary(TBATS_CO2_ML_Test)
+
+    # Analyse des residus ---
+
+checkresiduals(TBATS_CO2_ML_Test)
+```
+
+### Commentaires
+
+Le modele previsionnel TBATS semble bien convenir dans le cas present. Il permet notamment de bien representer les fluctuations saisonniere du taux atmospherique de CO2. De plus, la prevision basee sur les donnees d'entrainement est coherente avec celle des donnees test. Constatons aussi qu'un test Ljung-Box portant sur l'analyse des residus resulte en une valeur-p de 0.02178, ce qui laisse croire qu'il n'y a pas presence d'un bruit blanc, du moins il serait negligeable.
+
+Ainsi, on peut constater que ce modele est fiable. Neanmoins, il aurait ete interessant d'inclure l'effet de covariables comme les variations globales de temperatures saisonnieres ou bien le taux de production anthropique de CO2 au moyen de modeles previsionnelles comme ARIMA. On pourrait alors beneficie de modeles previsionnels dynamiques. Mais encore, mentionnons que d'autres packages tels que 'fable', offre des fonctions permettant l'hierarchisation dans les fluctuations saisonnieres.
